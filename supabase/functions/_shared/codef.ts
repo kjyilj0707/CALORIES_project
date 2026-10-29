@@ -9,7 +9,7 @@ const HOSTS: Record<string, string> = {
 };
 const TOKEN_URL = "https://oauth.codef.io/oauth/token";
 
-// 카드사 기관코드 (개발가이드 '기관코드' 표로 다시 확인할 것)
+// 카드사 기관코드 (개발가이드 "카드 개요 > 카드사 목록"에서 확인, 2026-10-29). 카카오뱅크·토스뱅크는 없음
 export const CARD_ORGS: Record<string, string> = {
   "KB국민": "0301", "현대": "0302", "삼성": "0303", "NH농협": "0304", "BC": "0305",
   "신한": "0306", "씨티": "0307", "우리": "0309", "롯데": "0311", "하나": "0313",
@@ -147,7 +147,11 @@ export function pick(row: Record<string, unknown>, ...needles: string[]): string
   return null;
 }
 
-/** 승인내역 조회. 요청 칸 이름은 개발가이드(KR_CD_P_002)로 재확인 필요. */
+// 가맹점 상세 정보 옵션. 우리카드(0309)는 제공하지 않아 "0" 고정 (개발가이드 KR_CD_P_002).
+// 현대카드는 이 값에 따라 실시간승인/결제확정 조회가 갈린다.
+const NO_MEMBER_STORE_INFO = new Set(["0309"]);
+
+/** 승인내역 조회 (KR_CD_P_002). */
 export async function fetchApprovals(org: string, connectedId: string, from: Date, to: Date): Promise<Approval[]> {
   const data = await codefRequest("/v1/kr/card/p/account/approval-list", {
     organization: org,
@@ -156,7 +160,7 @@ export async function fetchApprovals(org: string, connectedId: string, from: Dat
     endDate: ymd(to),
     orderBy: "0",              // 최신순
     inquiryType: "1",          // 전체 카드
-    memberStoreInfoType: "1",  // 가맹점 정보 포함 (현대카드는 이 값에 따라 실시간승인/결제확정이 갈림)
+    memberStoreInfoType: NO_MEMBER_STORE_INFO.has(org) ? "0" : "1",
   });
   const rows: Record<string, unknown>[] = Array.isArray(data) ? data : data?.resApprovalList ?? (data ? [data] : []);
   const out: Approval[] = [];

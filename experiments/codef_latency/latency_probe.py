@@ -38,8 +38,17 @@ def approval_params(conn, day):
         "endDate": ymd,
         "orderBy": "0",       # 0 = 최신순
         "inquiryType": "1",   # 1 = 전체 카드
-        "memberStoreInfoType": "1",  # 가맹점 정보 포함 (현대카드는 이 값에 따라 실시간승인/결제확정이 갈림)
+        "memberStoreInfoType": member_store_info_type(conn["organization"]),
     }
+
+
+# 가맹점 상세 정보 옵션. 우리카드(0309)는 제공하지 않아 "0" 고정 (개발가이드 KR_CD_P_002).
+# 현대카드는 이 값에 따라 실시간승인/결제확정 조회가 갈린다.
+NO_MEMBER_STORE_INFO = {"0309"}
+
+
+def member_store_info_type(org):
+    return "0" if org in NO_MEMBER_STORE_INFO else "1"
 
 
 def pick(row, *needles):

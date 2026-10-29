@@ -100,9 +100,23 @@ Deno.test("승인 내역 → 결제 저장·가맹점 분류·매칭·예측, �
       assertEquals(cancelled.predictions, []);
     });
 
-    await t.step("조회 기록(card_queries) 3건, 모두 성공", async () => {
+    await t.step("가맹점명이 없어도 그 시각 편의점 방문(CU)으로 분류 → 킷캣 + 마이구미", async () => {
+      await db.from("location_visits").insert({
+        user_id: userId, store_chain: "CU", entered_at: at(9).toISOString(), exited_at: at(7).toISOString(),
+      });
+      const noName: Approval = { approvalNo: "T8", merchant: null, amount: 3500, paidAt: at(8), isCancel: false };
+      await queryAndIngest(db, conn!, from, to, { trigger: "tap" }, () => Promise.resolve([noName]));
+      const { data } = await db.from("payment_events").select("merchants(chain), predictions(is_snack_score, candidates)")
+        .eq("user_id", userId).eq("approval_no", "T8").single();
+      // deno-lint-ignore no-explicit-any
+      const d: any = data;
+      assertEquals(d.merchants.chain, "CU");
+      assertEquals(d.predictions[0].candidates[0].items.length, 2);
+    });
+
+    await t.step("조회 기록(card_queries) 4건, 모두 성공", async () => {
       const { data: q } = await db.from("card_queries").select("ok, found").eq("user_id", userId).order("called_at");
-      assertEquals(q!.map((r) => [r.ok, r.found]), [[true, 5], [true, 0], [true, 1]]);
+      assertEquals(q!.map((r) => [r.ok, r.found]), [[true, 5], [true, 0], [true, 1], [true, 1]]);
     });
   } finally {
     await authAdmin.deleteUser(userId);

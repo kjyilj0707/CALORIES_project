@@ -50,7 +50,10 @@ export async function queryAndIngest(
   const fresh: string[] = [];
   for (const a of approvals) {
     if (a.paidAt < from) continue;
-    const { data: merchantId } = await db.rpc("match_merchant", { raw: a.merchant ?? "" });
+    const { data: matched } = await db.rpc("match_merchant", { raw: a.merchant ?? "" });
+    // 가맹점명이 아예 없으면(우리카드는 가맹점 정보 미제공) 결제 시각에 머물던 편의점(지오펜스 방문)으로 대신 판단.
+    // 이름이 있는데 사전에 없는 곳(김밥천국 등)은 근처 편의점으로 잘못 붙이지 않도록 그대로 미분류.
+    const merchantId = matched ?? (a.merchant?.trim() ? null : await merchantFromVisit(db, conn.user_id, a.paidAt));
     const { data, error } = await db.from("payment_events").insert({
       user_id: conn.user_id,
       source: "card_api",
@@ -78,6 +81,19 @@ export async function queryAndIngest(
   });
   await db.from("card_connections").update({ last_polled_at: new Date().toISOString() }).eq("id", conn.id);
   return fresh;
+}
+
+/** 결제 시각에 사용자가 들어가 있던(또는 나온 지 5분 안의) 편의점 체인 → merchants id */
+async function merchantFromVisit(db: SupabaseClient, userId: string, paidAt: Date): Promise<number | null> {
+  const t = paidAt.toISOString();
+  const { data: visit } = await db.from("location_visits").select("store_chain")
+    .eq("user_id", userId).lte("entered_at", t)
+    .or(`exited_at.is.null,exited_at.gte.${new Date(paidAt.getTime() - 5 * 60_000).toISOString()}`)
+    .order("entered_at", { ascending: false }).limit(1).maybeSingle();
+  if (!visit) return null;
+  const { data: m } = await db.from("merchants").select("id")
+    .eq("chain", visit.store_chain).order("snack_likelihood", { ascending: false }).limit(1).maybeSingle();
+  return m?.id ?? null;
 }
 
 /** 승인이 취소되면 원래 결제로 쌓인 스택 기록을 지운다 (PLAN 4.2 is_cancel). 응답(라벨)은 학습용으로 남긴다. */
