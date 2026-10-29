@@ -2,6 +2,9 @@
 
   python latency_probe.py            # 편의점에서 결제한 직후 엔터 = 라이브 액티비티 탭
   python latency_probe.py --dry-run  # 호출 없이 일정만 출력
+  python latency_probe.py --watch 40 --interval 30
+      # 감시 모드: 노트북 없이 편의점에 다녀오는 동안 40분간 30초마다 조회.
+      # 시작 전에 있던 승인은 무시하고, 새 승인이 처음 보인 시각 - 카드사 승인 시각 = 지연 (오차 ±interval)
 
 탭 순간 1회 조회하고, 못 찾으면 RETRY_AT 일정대로 재시도한다 (최대 len(RETRY_AT)회).
 결과는 results.csv 에 한 줄씩 쌓인다.
@@ -72,13 +75,66 @@ def parse_approvals(data):
     return out
 
 
+WATCH_RESULTS = HERE / "results_watch.csv"
+WATCH_MAX_CALLS = 90  # 데모는 하루 100회 → 다른 시험용으로 10회 남긴다
+
+
+def watch(minutes, interval):
+    codef = Codef()
+    conn = json.loads(STATE.read_text())[codef.env]
+    calls = min(int(minutes * 60 / interval) + 1, WATCH_MAX_CALLS)
+    end = datetime.now() + timedelta(seconds=interval * (calls - 1))
+    print(f"[{codef.env} · {conn['card']}] {interval}초마다 {calls}회 조회, {end:%H:%M}까지. 이제 편의점에 다녀오세요.")
+    seen = None   # 시작 시점에 이미 있던 승인 (승인번호+취소 여부)
+    found = 0
+    for i in range(calls):
+        if i:
+            time.sleep(interval)
+        polled = datetime.now()
+        try:
+            approvals = parse_approvals(codef.request(APPROVAL_PATH, approval_params(conn, polled)))
+        except CodefError as e:
+            print(f"  {polled:%H:%M:%S} 오류: {e}")
+            continue
+        keys = {(a["approval_no"], a["cancel"]) for a in approvals}
+        if seen is None:
+            seen = keys
+            print(f"  {polled:%H:%M:%S} 기준선: 오늘 승인 {len(keys)}건 (이건 무시)")
+            continue
+        for a in approvals:
+            if (a["approval_no"], a["cancel"]) in seen:
+                continue
+            seen.add((a["approval_no"], a["cancel"]))
+            found += 1
+            latency = round((polled - a["approved_at"]).total_seconds())
+            row = {
+                "polled_at": polled.isoformat(timespec="seconds"), "interval_sec": interval, "env": codef.env,
+                "card": conn["card"], "approved_at": a["approved_at"].isoformat(), "latency_sec": latency,
+                "merchant": a["merchant"], "amount": a["amount"], "cancel": a["cancel"],
+            }
+            new = not WATCH_RESULTS.exists()
+            with WATCH_RESULTS.open("a", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=row.keys())
+                if new:
+                    w.writeheader()
+                w.writerow(row)
+            print(f"  {polled:%H:%M:%S} 새 승인: {a['merchant']} {a['amount']}원, 승인 {a['approved_at']:%H:%M:%S}"
+                  f" → 지연 약 {latency}초 (±{interval}초)")
+    print(f"끝: 새 승인 {found}건, 호출 {codef.calls}회. 결과 {WATCH_RESULTS.name}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--watch", type=float, metavar="MINUTES", help="감시 모드: 이 시간(분) 동안 계속 조회")
+    ap.add_argument("--interval", type=int, default=30, help="감시 모드 조회 간격(초)")
     args = ap.parse_args()
 
     if args.dry_run:
         print("탭 후 조회 시점(초):", RETRY_AT)
+        return
+    if args.watch:
+        watch(args.watch, args.interval)
         return
 
     codef = Codef()
