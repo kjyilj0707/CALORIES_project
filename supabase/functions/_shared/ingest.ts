@@ -34,10 +34,11 @@ export async function queryAndIngest(
   from: Date,
   to: Date,
   opts: { trigger: "tap" | "backfill" | "nightly" | "manual"; storeChain?: string; backfill?: boolean },
+  fetcher: typeof fetchApprovals = fetchApprovals, // 테스트에서 가짜 승인 내역을 넣는 자리
 ): Promise<string[]> {
   let approvals: Approval[] = [];
   try {
-    approvals = await fetchApprovals(cardOrg(conn.card_company), conn.connected_id, from, to);
+    approvals = await fetcher(cardOrg(conn.card_company), conn.connected_id, from, to);
   } catch (e) {
     await db.from("card_queries").insert({
       user_id: conn.user_id, card_connection_id: conn.id, trigger: opts.trigger,
@@ -67,7 +68,8 @@ export async function queryAndIngest(
       throw error;
     }
     fresh.push(data.id);
-    if (!a.isCancel && !opts.backfill) await predict(db, conn.user_id, data.id, a, merchantId);
+    if (a.isCancel) await revertCancelled(db, conn, a.approvalNo);
+    else if (!opts.backfill) await predict(db, conn.user_id, data.id, a, merchantId);
   }
 
   await db.from("card_queries").insert({
@@ -76,6 +78,14 @@ export async function queryAndIngest(
   });
   await db.from("card_connections").update({ last_polled_at: new Date().toISOString() }).eq("id", conn.id);
   return fresh;
+}
+
+/** 승인이 취소되면 원래 결제로 쌓인 스택 기록을 지운다 (PLAN 4.2 is_cancel). 응답(라벨)은 학습용으로 남긴다. */
+async function revertCancelled(db: SupabaseClient, conn: CardConnection, approvalNo: string | null) {
+  if (!approvalNo) return;
+  const { data: original } = await db.from("payment_events").select("id")
+    .eq("card_connection_id", conn.id).eq("approval_no", approvalNo).eq("is_cancel", false).maybeSingle();
+  if (original) await db.from("consumption_log").delete().eq("event_id", original.id);
 }
 
 async function predict(db: SupabaseClient, userId: string, eventId: string, a: Approval, merchantId: number | null) {
