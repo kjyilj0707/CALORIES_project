@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+experiments/**/.state.json
+experiments/**/results*.csv
+.DS_Store
+catalog/raw/
+ios/build/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+experiments/*.mp4

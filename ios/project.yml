@@ -1,0 +1,62 @@
+# XcodeGen 설정. 프로젝트 파일(.xcodeproj)은 이 파일에서 만든다:  cd ios && xcodegen
+name: Calories
+options:
+  bundleIdPrefix: com.caloriesproject
+  deploymentTarget:
+    iOS: "17.0"          # 라이브 액티비티 안의 버튼(App Intents)은 iOS 17부터
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""  # Apple 개발자 계정이 생기면 팀 ID를 넣는다 (실기기·APNs·TestFlight)
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
+targets:
+  Calories:
+    type: application
+    platform: iOS
+    sources:
+      - path: Calories
+      - path: Shared
+    dependencies:
+      - package: Supabase
+      - target: CaloriesWidgets
+    info:
+      path: Calories/Info.plist
+      properties:
+        CFBundleDisplayName: 군것질 스택
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSSupportsLiveActivities: true
+        NSLocationWhenInUseUsageDescription: 편의점에 들어가면 결제를 더 빨리 알아차리기 위해 위치를 사용해요. 좌표는 저장하지 않고 매장 체인과 시각만 기록해요.
+        NSLocationAlwaysAndWhenInUseUsageDescription: 앱을 열지 않아도 편의점에 들어가면 잠금화면에서 바로 기록할 수 있도록 위치를 사용해요. 좌표는 저장하지 않고 매장 체인과 시각만 기록해요.
+        UIBackgroundModes: [location, remote-notification]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.caloriesproject.app
+            CFBundleURLSchemes: [calories]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.caloriesproject.app
+
+  CaloriesWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CaloriesWidgets
+      - path: Shared
+    info:
+      path: CaloriesWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: 군것질 스택
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.caloriesproject.app.widgets
