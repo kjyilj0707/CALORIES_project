@@ -49,33 +49,34 @@
 26. 🐞 **확인 화면이 안 뜨던 버그 수정**: "결제 내역을 확인하고 있어요"를 alert로 띄우면, 결제를 찾았을 때 alert 닫기와 sheet 열기가 겹쳐 확인 화면이 무시됨 → 화면을 막지 않는 상단 안내 띠(safeAreaInset)로 교체. 시연 영상 `experiments/sim_demo.mp4`(iPhone Duo, 19초): 홈 → 안내 띠 → "킷캣 오리지널 (36.5g) 2개 사 드셨나요?" 확인. iOS 27.0 런타임(iPhone 16용)은 다운로드 속도가 느려 3~4시간 예상.
 27. **iPhone 16 시뮬레이터로 전환**: iOS 27.0 런타임 설치(다운로드 로그에 "Registering … failed"가 찍혔지만 런타임은 정상 등록·iPhone 16 지원). 시뮬레이터 "Calories iPhone 16"(64470DE9-B589-4481-A6E5-0FE07D111453), 시연 사용자 75496d62에 같은 시연 데이터. `experiments/sim_demo_iphone16.mp4` 녹화 성공. DeviceHub를 열면 마지막에 쓴 기기(iPhone Duo)도 같이 부팅하므로 Duo는 shutdown. 서버 통합 테스트 `supabase/functions/tests/` 추가, 승인 취소 시 스택 되돌리기 구현. git 저장소 생성(main).
 
-## 사용자가 할 일
-- [ ] CODEF 개발자 가입, 샌드박스·데모 키 발급
-- [x] ~~**Supabase 익명 로그인 켜기**~~ (완료): 대시보드 → Authentication → Sign In / Providers → "Allow anonymous sign-ins"
-- [x] ~~**Xcode 설치**~~ (27.1, xcode-select 전환 완료)
-- [ ] (참고) **Xcode 설치** (App Store, 현재 미설치: 명령줄 도구만 있음), Apple Developer Program 가입 여부 결정
-- [x] ~~CODEF 가입 후 키를 `CALORIES_project/.env`에 입력~~ (완료, 서버 시크릿도 설정) (CODEF_ENV, CODEF_CLIENT_ID, CODEF_CLIENT_SECRET, CODEF_PUBLIC_KEY). 데모 신청은 측정 준비가 끝난 뒤에 (계정당 1회, 1개월)
-- [ ] 식약처 식품영양성분DB정보 활용신청 → `.env`에 `MFDS_API_KEY` (Decoding 키)
-- [ ] Supabase calories 프로젝트 secret 키 → `.env`에 `SUPABASE_URL=https://uzhtkykhkfcqsswfityg.supabase.co`, `SUPABASE_SECRET_KEY`
-- [ ] 자주 먹는 군것질 20개 목록
-- [ ] 주변 설문: 카드 한 장 연결 의향, 군것질용 카드 개수
+28. **측정용 카드 = 우리카드**(0309, 공식 확인). 주 카드 카카오뱅크는 CODEF 미지원(공식 카드사 목록 14개에 없음). 우리카드는 가맹점 정보 미제공 → memberStoreInfoType "0", 가맹점명이 비면 지오펜스 방문 체인으로 분류. 측정 도구에 `--watch` 감시 모드 추가.
+29. **세션 종료 시점**: 우리카드 **웹 아이디·비밀번호를 모르는 상태** (앱은 Face ID 로그인만 됨, 아이디 찾기 중 비밀번호 3회 틀림 → 더 시도하지 말고 본인인증 재설정). README.md, docs/media(시연 캡처·영상) 추가, GitHub 비공개 저장소에 올림, Notion 반영.
+
+## 사용자가 할 일 (2026-10-29 종료 기준)
+- [x] ~~CODEF 가입·샌드박스 키~~ / ~~Supabase 익명 로그인~~ / ~~Xcode~~ / ~~식약처 키~~ / ~~Supabase secret 키~~
+- [ ] **우리카드 웹 아이디·비밀번호 확보**: 우리WON카드 앱 → 전체메뉴 검색 "비밀번호" → 본인인증으로 재설정 (추측 입력 금지, 5회 잠김 주의). 아이디가 없으면 회원가입(아이디 만들기). 지문·간편비밀번호는 CODEF에 못 씀
+- [ ] 측정 가능한 날 정하기 → 그날 **CODEF 데모 신청**(계정당 1회·1개월·하루 100회) → 데모 키를 `.env`에 (`CODEF_ENV=demo`)
+- [ ] CODEF 문의: 계정당 안전한 조회 빈도·IP 차단 기준, 건당 단가, 정식 전환 조건, 카카오뱅크·토스뱅크 지원 계획
+- [ ] Apple Developer Program 가입 여부 결정 (실기기 장기 설치·푸시·TestFlight)
+- [ ] 마이구미 평소 가격 확인, 자주 먹는 군것질과 가격 더 모으기
+- [ ] 주변 설문: 카드 연결 의향, 군것질용 카드 개수, 주 카드 은행·카드사(카카오뱅크·토스뱅크 비율)
 
 ## 다음 개발 순서
-1. CODEF 문서 확인 (인증 방식, 과거 조회 기간, 과금, 고정 IP, connectedId) + **결제 → 승인 반영 지연 측정 스크립트** (Python)
-2. DB 스키마 (PLAN 4장: card_connections, payment_events[approval_no, detected_at], location_visits, stores 추가)
-3. 식약처 DB 수집 스크립트 → 카탈로그 300~500개
-4. SwiftUI 앱 뼈대: 카드 연결 온보딩, 30일 리포트, APNs 알림 액션
+1. **CODEF 데모 측정**: `.env` 데모 키 → `supabase secrets set --env-file`(값 노출 없이) → `experiments/codef_latency/register_account.py`로 우리카드 연결 → `latency_probe.py --watch 40 --interval 30` → 편의점 결제 → 지연·가맹점명 확인
+2. 실기기 설치(무료 계정 7일) → 지오펜스·라이브 액티비티 확인
+3. 확인 대기함, UI/UX 정리 (사용자 결정: 나중에)
+4. APNs (개발자 계정 후)
 
 ---
 
 ## 새 세션 시작 프롬프트 (복사해서 사용)
 
 ```
-CALORIES_project 이어서 하자. 먼저 /Users/yeobby/MY_PROJECT/CALORIES_project/HANDOFF.md 와 PLAN.md(v0.4)를 읽고 지금까지의 결정 사항과 다음 단계를 파악해줘.
+CALORIES_project 이어서 하자. 먼저 /Users/yeobby/MY_PROJECT/CALORIES_project/HANDOFF.md, PLAN.md(v0.4.1), README.md를 읽고 지금까지의 결정과 다음 단계를 파악해줘.
 
-요약: iPhone 앱. 서버가 카드 승인 내역(CODEF → 마이데이터)을 조회해서 결제를 감지하고, 우리 앱 푸시로 "방금 ○○ 드셨나요?"를 물어 원탭으로 군것질 칼로리·당류 스택을 쌓는 서비스야. 카드 연결은 온보딩 첫 단계, 편의점 진입 시 라이브 액티비티를 탭하면 1회 조회해서 "결제하는 순간" 감지. 목표 데이터 경로는 마이데이터.
+요약: iPhone 앱 "군것질 스택". 편의점 진입 → 잠금화면 라이브 액티비티 탭 → 서버(Supabase Edge Function tap-check)가 카드 승인 내역(CODEF, 장기 마이데이터)을 조회 → 금액으로 군것질 조합 매칭 → "킷캣 2개 사 드셨나요?" 원탭 → 칼로리·당류 스택.
+백엔드: Supabase calories (ref uzhtkykhkfcqsswfityg, 서울). GitHub: kjyilj0707/CALORIES_project (비공개). 시뮬레이터: Calories iPhone 16 (iOS 27.0).
 
-백엔드: Supabase 프로젝트 calories (ref uzhtkykhkfcqsswfityg, 서울)
-현재 진행 상황: [CODEF 가입·키 발급 / 지연 측정 결과 / Xcode·개발자 계정 / 식약처 API 키]
-이번 세션 목표: [예: CODEF 지연 측정 스크립트 / DB 스키마 / SwiftUI 앱 뼈대]
+현재 진행 상황: [우리카드 아이디·비번 확보 여부 / CODEF 데모 신청 여부 / 개발자 계정]
+이번 세션 목표: [예: CODEF 데모로 지연 측정 / 실기기 설치 / UI 정리]
 ```
